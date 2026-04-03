@@ -1,16 +1,73 @@
-# flutterprojects
+# CIDR Scanner
 
-Check cidr/sni whitelist
+Инструмент для проверки доступности CIDR-диапазонов и отдельных IP-адресов.
 
-## Getting Started
+Приложение выполняет асинхронное сканирование, сохраняет историю результатов
+и позволяет управлять большими списками CIDR (включая импорт из файлов).
 
-This project is a starting point for a Flutter application.
+## Основные возможности
 
-A few resources to get you started if this is your first Flutter project:
+- Сканирование в двух режимах:
+	- List: сканирование выбранного списка CIDR
+	- Single: проверка одного CIDR или одного IP
+- Методы проверки доступности:
+	- ICMP
+	- TCP
+	- UDP
+	- HTTP (с опцией HTTPS)
+- Импорт списков CIDR из файлов `.txt` и `.cidr`
+- История сканов с деталями по найденным ALIVE диапазонам
+- Локальное сохранение настроек и данных (Hive)
+- Асинхронная обработка и параллельные задачи сканирования
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Настройки сканирования
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+В интерфейсе доступны следующие параметры:
+
+- IPs per range: сколько IP адресов проверять в каждом CIDR
+- Timeout (sec): таймаут на одну проверку
+- Max workers: количество параллельных воркеров
+- Ping Method: ICMP / TCP / UDP / HTTP
+- Target Port: целевой порт (для TCP/UDP/HTTP)
+- Use HTTPS: включается только для HTTP-метода
+
+## Разделы интерфейса
+
+- Scan: запуск сканирования и настройка параметров
+- CIDR Lists: создание, редактирование, импорт и выбор списков
+- History: просмотр истории завершенных сканов
+- Current Tasks (верхняя кнопка): активные задачи в реальном времени
+
+## Импорт CIDR из файла
+
+На странице `CIDR Lists` нажмите `Import` и выберите файл формата:
+
+- `.txt`
+- `.cidr`
+
+Файл должен содержать CIDR-строки по одной записи на строку.
+
+## Запуск проекта
+
+```bash
+flutter pub get
+flutter run
+```
+
+## Release-сборка Android
+
+```bash
+flutter build apk --release --split-debug-info=build/symbols --split-per-abi
+```
+
+Имя выходного APK формируется автоматически в формате:
+
+`cidr_scanner-<versionName>-<abi>.apk`
+
+## Обновления без переустановки
+
+Чтобы пользователи могли обновлять приложение поверх уже установленного:
+
+- не меняйте `applicationId` / `bundle identifier`
+- подписывайте релизы тем же keystore
+- увеличивайте `versionCode` для каждого нового релиза

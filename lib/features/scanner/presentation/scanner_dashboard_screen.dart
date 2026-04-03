@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,9 +46,7 @@ class _ScannerDashboardScreenState
     final state = ref.watch(scanControllerProvider);
     final controller = ref.read(scanControllerProvider.notifier);
     final settings = state.settings;
-    final hasRunningTask = state.currentTasks.any(
-      (task) => task.status == ScanSessionStatus.running,
-    );
+    final currentTaskCount = state.currentTasks.length;
 
     final effectivePortText = settings.targetPort?.toString() ?? '';
     if (_portController.text != effectivePortText) {
@@ -68,9 +68,19 @@ class _ScannerDashboardScreenState
     return DefaultTabController(
       length: 3,
       child: Scaffold(
+        extendBody: true,
         backgroundColor: Colors.black,
         appBar: AppBar(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          surfaceTintColor: Colors.transparent,
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Container(color: Colors.black.withValues(alpha: 0.45)),
+            ),
+          ),
           title: const Text(
             'CIDR Scanner',
             style: TextStyle(color: Colors.white),
@@ -78,43 +88,28 @@ class _ScannerDashboardScreenState
           actions: [
             IconButton(
               onPressed: () async {
-                await _openCurrentTasksSheet(
-                  context,
-                  controller,
-                  state.currentTasks,
-                );
+                await _openCurrentTasksSheet(context, controller);
               },
-              icon: const Icon(Icons.task_alt_outlined),
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.task_alt_outlined),
+                  if (currentTaskCount > 0)
+                    Positioned(
+                      right: -7,
+                      top: -7,
+                      child: _TaskCounterBadge(count: currentTaskCount),
+                    ),
+                ],
+              ),
               color: Colors.white,
               tooltip: 'Current tasks',
-            ),
-            IconButton(
-              onPressed: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const CidrListsScreen(),
-                  ),
-                );
-                if (!mounted) {
-                  return;
-                }
-                await controller.refreshLists();
-              },
-              icon: const Icon(Icons.playlist_add_check_circle_outlined),
-              color: Colors.white,
-              tooltip: 'Manage CIDR lists',
-            ),
-            IconButton(
-              onPressed: hasRunningTask ? null : controller.refreshLists,
-              icon: const Icon(Icons.refresh),
-              color: Colors.white,
-              tooltip: 'Refresh lists',
             ),
           ],
         ),
         body: Container(
           color: Colors.black,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 108),
           child: TabBarView(
             children: [
               _ScanTab(
@@ -130,11 +125,7 @@ class _ScannerDashboardScreenState
                   await _openSessionDialog(context, sessionId);
                 },
               ),
-              _CurrentTasksTab(
-                tasks: state.currentTasks,
-                onOpen: (session) => _openSessionDialog(context, session.id),
-                onDismiss: controller.dismissTask,
-              ),
+              const CidrListsScreen(embedded: true),
               _HistoryTab(
                 entries: state.scanHistory,
                 onOpen: (entry) => _openHistoryDialog(context, entry),
@@ -143,15 +134,40 @@ class _ScannerDashboardScreenState
             ],
           ),
         ),
-        bottomNavigationBar: const TabBar(
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Color(0xFF999999),
-          tabs: [
-            Tab(text: 'Scan'),
-            Tab(text: 'Current Tasks'),
-            Tab(text: 'History'),
-          ],
+        bottomNavigationBar: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: SizedBox(
+            height: 68,
+            child: TabBar(
+              indicator: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              indicatorPadding: const EdgeInsets.symmetric(
+                horizontal: 2,
+                vertical: 2,
+              ),
+              splashFactory: NoSplash.splashFactory,
+              overlayColor: WidgetStateProperty.all(Colors.transparent),
+              dividerColor: Colors.transparent,
+              labelColor: Colors.white,
+              unselectedLabelColor: const Color(0xFF999999),
+              labelPadding: EdgeInsets.zero,
+              textScaler: TextScaler.noScaling,
+              tabs: const [
+                Tab(icon: Icon(Icons.radar_outlined, size: 20), text: 'Scan'),
+                Tab(
+                  icon: Icon(
+                    Icons.playlist_add_check_circle_outlined,
+                    size: 20,
+                  ),
+                  text: 'CIDR Lists',
+                ),
+                Tab(icon: Icon(Icons.history, size: 20), text: 'History'),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -166,13 +182,14 @@ class _ScannerDashboardScreenState
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => _SessionDialog(sessionId: sessionId),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final scale = CurvedAnimation(
+        final fade = CurvedAnimation(
           parent: animation,
-          curve: Curves.easeOutBack,
+          curve: Curves.easeOutCubic,
         );
+        final scale = Tween<double>(begin: 0.7, end: 1.0).animate(fade);
         return ScaleTransition(
           scale: scale,
-          child: FadeTransition(opacity: animation, child: child),
+          child: FadeTransition(opacity: fade, child: child),
         );
       },
     );
@@ -181,7 +198,6 @@ class _ScannerDashboardScreenState
   Future<void> _openCurrentTasksSheet(
     BuildContext context,
     ScanController controller,
-    List<ScanSession> tasks,
   ) {
     return showModalBottomSheet<void>(
       context: context,
@@ -191,51 +207,60 @@ class _ScannerDashboardScreenState
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Current Tasks',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
-                const SizedBox(height: 12),
-                if (tasks.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                        'No current tasks',
-                        style: TextStyle(color: Color(0xFFAAAAAA)),
-                      ),
+        return Consumer(
+          builder: (context, ref, _) {
+            final tasks = ref.watch(
+              scanControllerProvider.select((s) => s.currentTasks),
+            );
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Current Tasks',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
-                  )
-                else
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 420),
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: tasks.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        return _TaskCard(
-                          task: task,
-                          onOpen: () {
-                            Navigator.of(sheetContext).pop();
-                            _openSessionDialog(context, task.id);
+                    const SizedBox(height: 12),
+                    if (tasks.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: Text(
+                            'No current tasks',
+                            style: TextStyle(color: Color(0xFFAAAAAA)),
+                          ),
+                        ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 420),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: tasks.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final task = tasks[index];
+                            return _TaskCard(
+                              task: task,
+                              onOpen: () {
+                                Navigator.of(sheetContext).pop();
+                                _openSessionDialog(context, task.id);
+                              },
+                              onDismiss: () => controller.dismissTask(task.id),
+                            );
                           },
-                          onDismiss: () => controller.dismissTask(task.id),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -253,13 +278,14 @@ class _ScannerDashboardScreenState
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => _HistoryDetailsDialog(entry: entry),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final scale = CurvedAnimation(
+        final fade = CurvedAnimation(
           parent: animation,
-          curve: Curves.easeOutBack,
+          curve: Curves.easeOutCubic,
         );
+        final scale = Tween<double>(begin: 0.7, end: 1.0).animate(fade);
         return ScaleTransition(
           scale: scale,
-          child: FadeTransition(opacity: animation, child: child),
+          child: FadeTransition(opacity: fade, child: child),
         );
       },
     );
@@ -500,61 +526,16 @@ class _ScanTab extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          _SectionCard(
-            child: Builder(
-              builder: (context) {
-                final runningTasks = state.currentTasks.where(
-                  (task) => task.status == ScanSessionStatus.running,
-                );
-                final activeTask = runningTasks.isNotEmpty
-                    ? runningTasks.first
-                    : (state.currentTasks.isNotEmpty
-                          ? state.currentTasks.first
-                          : null);
-                final progressText = activeTask == null
-                    ? 'No active tasks'
-                    : '${activeTask.progress}/${activeTask.totalRanges}';
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Current tasks: ${state.currentTasks.length}',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      progressText,
-                      style: const TextStyle(color: Color(0xFFB0B0B0)),
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {
-                          final tabController = DefaultTabController.of(
-                            context,
-                          );
-                          tabController.animateTo(1);
-                        },
-                        child: const Text(
-                          'Open Current Tasks',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ),
-                    if (state.errorMessage != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        state.errorMessage!,
-                        style: const TextStyle(color: Color(0xFFCC6666)),
-                      ),
-                    ],
-                  ],
-                );
-              },
+          if (state.errorMessage != null) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                state.errorMessage!,
+                style: const TextStyle(color: Color(0xFFCC6666)),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -804,7 +785,9 @@ class _HistoryDetailsDialog extends StatelessWidget {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: const Color(0xFF050505),
-                            border: Border.all(color: const Color(0xFF1D1D1D)),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.05),
+                            ),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: entry.aliveRanges.isEmpty
@@ -832,7 +815,9 @@ class _HistoryDetailsDialog extends StatelessWidget {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: const Color(0xFF050505),
-                            border: Border.all(color: const Color(0xFF1D1D1D)),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.05),
+                            ),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: SingleChildScrollView(
@@ -859,39 +844,31 @@ class _HistoryDetailsDialog extends StatelessWidget {
   }
 }
 
-class _CurrentTasksTab extends StatelessWidget {
-  const _CurrentTasksTab({
-    required this.tasks,
-    required this.onOpen,
-    required this.onDismiss,
-  });
+class _TaskCounterBadge extends StatelessWidget {
+  const _TaskCounterBadge({required this.count});
 
-  final List<ScanSession> tasks;
-  final ValueChanged<ScanSession> onOpen;
-  final Future<void> Function(String sessionId) onDismiss;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    if (tasks.isEmpty) {
-      return const Center(
-        child: Text(
-          'No current tasks',
-          style: TextStyle(color: Color(0xFFAAAAAA)),
+    final display = count > 99 ? '99+' : '$count';
+    return Container(
+      constraints: const BoxConstraints(minWidth: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        display,
+        style: const TextStyle(
+          color: Colors.black,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
         ),
-      );
-    }
-
-    return ListView.separated(
-      itemCount: tasks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final task = tasks[index];
-        return _TaskCard(
-          task: task,
-          onOpen: () => onOpen(task),
-          onDismiss: () => onDismiss(task.id),
-        );
-      },
+      ),
     );
   }
 }
@@ -1093,7 +1070,7 @@ class _RangeResultCard extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFF090909),
-        border: Border.all(color: const Color(0xFF1D1D1D)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -1150,7 +1127,7 @@ class _HistoryRangeCard extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFF090909),
-        border: Border.all(color: const Color(0xFF1D1D1D)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -1283,7 +1260,7 @@ class _SectionCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF050505),
-        border: Border.all(color: const Color(0xFF1D1D1D)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: child,

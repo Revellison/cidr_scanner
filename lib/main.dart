@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'core/storage/hive_bootstrap.dart';
 import 'features/scanner/presentation/scanner_dashboard_screen.dart';
@@ -20,6 +21,10 @@ class App extends StatelessWidget {
       theme: ThemeData(
         scaffoldBackgroundColor: Colors.black,
         brightness: Brightness.dark,
+        textTheme: GoogleFonts.rubikTextTheme(ThemeData.dark().textTheme),
+        primaryTextTheme: GoogleFonts.rubikTextTheme(
+          ThemeData.dark().primaryTextTheme,
+        ),
         colorScheme: const ColorScheme.dark(
           surface: Colors.black,
           onSurface: Colors.white,
