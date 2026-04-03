@@ -1,0 +1,4 @@
+enum ScanTargetMode {
+  list,
+  single,
+}
