@@ -1,9 +1,6 @@
 # CIDR Scanner
-![photo_2026-04-03_21-10-29](https://github.com/user-attachments/assets/59e30f72-0106-4c50-95f3-7b65fd0fbb88)
-
-
-![photo_2026-04-03_21-10-26](https://github.com/user-attachments/assets/35e9f884-082e-45f4-bca8-49f13d181407)
-
+![photo1](images/image%20(1).jpg)
+![photo2](images/image%20(2).jpg)
 Инструмент для проверки доступности CIDR-диапазонов и отдельных IP-адресов.
 
 Приложение выполняет асинхронное сканирование, сохраняет историю результатов
@@ -64,14 +61,3 @@ flutter run
 flutter build apk --release --split-debug-info=build/symbols --split-per-abi
 ```
 
-Имя выходного APK формируется автоматически в формате:
-
-`cidr_scanner-<versionName>-<abi>.apk`
-
-## Обновления без переустановки
-
-Чтобы пользователи могли обновлять приложение поверх уже установленного:
-
-- не меняйте `applicationId` / `bundle identifier`
-- подписывайте релизы тем же keystore
-- увеличивайте `versionCode` для каждого нового релиза
