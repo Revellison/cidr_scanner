@@ -1,4 +1,8 @@
 # CIDR Scanner
+![photo_2026-04-03_21-10-29](https://github.com/user-attachments/assets/59e30f72-0106-4c50-95f3-7b65fd0fbb88)
+
+
+![photo_2026-04-03_21-10-26](https://github.com/user-attachments/assets/35e9f884-082e-45f4-bca8-49f13d181407)
 
 Инструмент для проверки доступности CIDR-диапазонов и отдельных IP-адресов.
 
